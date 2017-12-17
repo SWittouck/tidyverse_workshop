@@ -1,0 +1,68 @@
+---
+title: "Abstraction with tidyverse verbs"
+author: "Stijn Wittouck"
+date: "December 17, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+In this short tutorial, I will explain how to incorporate tidyverse analyses inside your own functions. The user of such a function should be able not only to input her/his own dataset, but also to decide which variables will be the subject of the analysis. 
+
+Let's start, as always, be loading the core tidyverse packages: 
+
+```{r}
+library(tidyverse)
+```
+
+As an example, we will use the "animals" dataset again. Let's read it in and inspect the tibble to refresh our memory: 
+
+```{r}
+animals <- read_tsv("data/animals.tsv")
+glimpse(animals)
+```
+
+Writing a function that performs an operation on a fixed variable is simple. Let's write a function that computes the mean of the variable "proteins" for any given input dataset and apply the function to the "animals" tibble:
+
+```{r}
+get_mean_proteins <- function(dataset) {
+  summarize(dataset, mean_proteins = mean(proteins, na.rm = T))
+}
+
+get_mean_proteins(animals)
+```
+
+Nothing new here. However, a problem arises when we want to make the function more general. We would like to make a function `get_mean()` that will return the mean of a variable the user can decide upon. The following solution won't work: 
+
+```{r}
+get_mean <- function(dataset, my_var) {
+  summarize(dataset, mean = mean(my_var, na.rm = T))
+}
+get_mean(animals, "proteins")
+```
+
+R will now look for a variable with the literal name "my_var" in the supplied dataset, which is of course not what we want; such a variable doesn't even exist. The challenge is that we want R to fetch the **contents** of the variable `my_var`, not the **name** of that variable. The contents of `my_var` is the name of the variable we need. As it turns out, there is a very simple way to make a tidyverse function use the contents instead of the name of a variable: we precede the variable with the `!!` operator. 
+
+```{r}
+get_mean <- function(dataset, my_var) {
+  summarize(dataset, mean = mean(!! my_var, na.rm = T))
+}
+```
+
+To make this work, we have to make one more small adjustment. For rather technical reasons, the contents of `my_var` can't just be a string (e.g. `"proteins"`), as you would expect would work. The variable needs to refer to a so-called **quosure**. We don't need to know what that is exactly to be able to use it: we can just convert our function argument to a quosure with the function `enquo()`. With this small modification, our function will work as intended:
+
+```{r}
+get_mean <- function(dataset, my_var) {
+  my_var <- enquo(my_var)
+  summarize(dataset, mean = mean(!! my_var, na.rm = T))
+}
+
+get_mean(animals, proteins)
+get_mean(animals, genes)
+```
+
+So, by converting our function arguments to quosures and preciding them with `!!` in the tidyverse verbs, we are able to make flexible functions where the user can choose which variables to use. 
+
+You can find further theoretical explanations and practical examples in the ["programming with dplyr"](https://github.com/tidyverse/dplyr/blob/master/vignettes/programming.Rmd) vigette by Hadley Wickham himself. 
